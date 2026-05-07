@@ -1,0 +1,279 @@
+<mvc:View
+    xmlns:form="sap.ui.layout.form"
+    controllerName="com.infosys.hybridhorizon.controller.Main"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:u="sap.ui.unified"
+    xmlns:viz="sap.viz.ui5.controls"
+    xmlns:viz.data="sap.viz.ui5.data"
+    xmlns:viz.feeds="sap.viz.ui5.controls.common.feeds"
+    displayBlock="true"
+    xmlns:core="sap.ui.core"
+>
+    <App  >
+        <Page
+            id="pageId"
+            title="{i18n>title}"
+            titleAlignment="Center"
+            enableScrolling="true"
+            class="sapUiContentPadding"
+        >
+            <headerContent>
+                <Button
+                    icon="sap-icon://action-settings"
+                    iconDensityAware="true"
+                    tooltip="Settings"
+                    type="Transparent"
+                    press="OnSettings"
+                />
+            </headerContent>
+
+            <content>
+                <VBox
+                    width="100%"
+                    alignItems="Stretch"
+                >
+                    <!-- Calendar -->
+                    <VBox
+                        width="100%"
+                        class="sapUiNoContentPadding"
+                    >
+                        <u:Calendar
+                            id="workCalendar"
+                            width="100%"
+                            select="handleDaySelect"
+                            startDateChange="handleMonthChange"
+                            specialDates="{path: '/days', templateShareable: false}"
+                            minDate="{/minCalendarDate}"
+                            maxDate="{/maxCalendarDate}"
+                        >
+                            <u:specialDates>
+                                <u:DateTypeRange
+                                    startDate="{path: 'date', formatter: '.formatter.formatDate'}"
+                                    type="{type}"
+                                    tooltip="{status}"
+                                />
+                            </u:specialDates>
+                        </u:Calendar>
+                    </VBox>
+                    <!-- Messages -->
+                    <MessageStrip
+                        text="{/message/messageStripText}"
+                        type="{/message/type}"
+                        visible="{/message/visible}"
+                        showIcon="true"
+                        showCloseButton="true"
+                        class="sapUiMediumMarginBottom"
+                    />
+                    <!-- Tiles -->
+                    <HBox
+                        justifyContent="SpaceAround"
+                        class="sapUiNoMarginTopBottom"
+                        height="90%"
+                    >
+                        <items>
+                            <!-- <GenericTile
+                                header="Workdays"
+                                frameType="Auto"
+                                press="._resetCalendar"
+                                class="sapUiTinyMargin"
+                            >
+                                <tileContent>
+                                    <TileContent footer="Current Month">
+                                        <NumericContent
+                                            value="{/summary/workdays}"
+                                            valueColor="Neutral"
+                                            indicator="None"
+                                        />
+                                    </TileContent>
+                                </tileContent>
+                            </GenericTile> -->
+                            <GenericTile
+                                header="WFH Days"
+                                frameType="OneByHalf"
+                                press="onWFHPress"
+                                class="sapUiTinyMargin"
+                            >
+                                <tileContent>
+                                    <TileContent footer="Current Month">
+                                        <NumericContent
+                                            value="{/summary/wfhTotal}"
+                                            valueColor="Good"
+                                            indicator="None"
+                                            icon="sap-icon://home"
+                                            animateTextChange="true"
+                                        />
+                                    </TileContent>
+                                </tileContent>
+                            </GenericTile>
+
+                            <GenericTile
+                                header="WFO Days"
+                                frameType="OneByHalf"
+                                press="onWFOPress"
+                                class="sapUiTinyMargin"
+                            >
+                                <tileContent>
+                                    <TileContent footer="Current Month">
+                                        <NumericContent
+                                            value="{/summary/wfoTotal}"
+                                            valueColor="Critical"
+                                            indicator="None"
+                                            icon="sap-icon://building"
+                                            animateTextChange="true"
+                                        />
+                                    </TileContent>
+                                </tileContent>
+                            </GenericTile>
+                        </items>
+                    </HBox>
+
+                    <!-- Chart -->
+                    <viz:VizFrame
+                        id="idVizFrame"
+                        uiConfig="{applicationSet:'fiori'}"
+                        height="250px"
+                        width="100%"
+                        vizType="column"
+                    >
+                        <viz:dataset>
+                            <viz.data:FlattenedDataset data="{/chartData}">
+                                <viz.data:dimensions>
+                                    <viz.data:DimensionDefinition
+                                        name="Category"
+                                        value="{category}"
+                                    />
+                                </viz.data:dimensions>
+                                <viz.data:measures>
+                                    <viz.data:MeasureDefinition
+                                        name="Days"
+                                        value="{value}"
+                                    />
+                                </viz.data:measures>
+                            </viz.data:FlattenedDataset>
+                        </viz:dataset>
+                        <viz:feeds>
+                            <viz.feeds:FeedItem
+                                uid="valueAxis"
+                                type="Measure"
+                                values="Days"
+                            />
+                            <viz.feeds:FeedItem
+                                uid="categoryAxis"
+                                type="Dimension"
+                                values="Category"
+                            />
+                        </viz:feeds>
+                    </viz:VizFrame>
+                </VBox>
+            </content>
+
+            <dependents>
+                <Popover
+                    id="statusPopover"
+                    title="Select Status"
+                    placement="Bottom"
+                >
+                    <content>
+                        <List
+                            id="statusList"
+                            itemPress=".onStatusChange"
+                            mode="None"
+                        >
+                            <StandardListItem
+                                title="WFH"
+                                type="Active"
+                                icon="sap-icon://home"
+                            />
+                            <StandardListItem
+                                title="WFO"
+                                type="Active"
+                                icon="sap-icon://building"
+                            />
+                            <StandardListItem
+                                title="Leave"
+                                type="Active"
+                                icon="sap-icon://flight"
+                            />
+                            <StandardListItem
+                                title="Holiday"
+                                type="Active"
+                                icon="sap-icon://umbrella"
+                            />
+                        </List>
+                    </content>
+                </Popover>
+
+                <Popover
+                    id="settings"
+                    title="Custom Settings"
+                    placement="Auto"
+                >
+                    <content>
+                        <form:SimpleForm
+                            editable="true"
+                            layout="ColumnLayout"
+                        >
+                            <Label text="WFH Bucket" />
+                            <Select
+                                id="monthSelector"
+                                items="{/availableMonths}"
+                                change=".onMonthChange"
+                                selectedKey="{/selectedMonthKey}"
+                                width="110px"
+                                class="sapUiTinyMarginEnd"
+                            >
+                                <core:Item
+                                    key="{key}"
+                                    text="{text}"
+                                />
+                            </Select>
+
+                            <Input
+                                id="wfhBucketInput"
+                                value="{/currentWfhBucket}"
+                                type="Number"
+                                width="70px"
+                                placeholder="Qty"
+                                liveChange=".onWfhBucketChange"
+                            />
+
+                            <Label text="Select Prefered WFO" />
+                            <MultiComboBox
+                                id="daysSelector"
+                                items="{path: '/configDays'}"
+                                selectionChange=".onSelectionChange"
+                                placeholder="Days"
+                                width="120px"
+                            >
+                                <core:Item
+                                    key="{key}"
+                                    text="{text}"
+                                />
+                            </MultiComboBox>
+                            <Label />
+                            <Button
+                                text="Close"
+                                icon="sap-icon://submit"
+                                iconDensityAware="true"
+                                tooltip="Reset to Default"
+                                type="Transparent"
+                                press="onOkPress"
+                            />
+                            <Label visible="false" />
+                            <Button
+                                text="Reset"
+                                icon="sap-icon://reset"
+                                iconDensityAware="true"
+                                tooltip="Reset to Default"
+                                type="Critical"
+                                press="onReset"
+                                visible="false"
+                            />
+                        </form:SimpleForm>
+                    </content>
+                </Popover>
+            </dependents>
+        </Page>
+    </App>
+</mvc:View>
