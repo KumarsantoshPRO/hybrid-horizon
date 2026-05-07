@@ -1,0 +1,2 @@
+sap.ui.define(["com/infosys/hybridhorizon/controller/Main.controller"],function(n){"use strict";function o(n){return n&&n.__esModule&&typeof n.default!=="undefined"?n.default:n}const t=o(n);QUnit.module("Main Controller");QUnit.test("I should test the Main controller",function(n){const o=new t("Main");o.onInit();n.ok(o)})});
+//# sourceMappingURL=MainPage.controller.js.map
