@@ -10,7 +10,7 @@
     displayBlock="true"
     xmlns:core="sap.ui.core"
 >
-    <App  >
+    <App>
         <Page
             id="pageId"
             title="{i18n>title}"
@@ -206,7 +206,7 @@
 
                 <Popover
                     id="settings"
-                    title="Custom Settings"
+                    title="{/settingsTitle}"
                     placement="Auto"
                 >
                     <content>
@@ -222,6 +222,7 @@
                                 selectedKey="{/selectedMonthKey}"
                                 width="110px"
                                 class="sapUiTinyMarginEnd"
+                                visible="false"
                             >
                                 <core:Item
                                     key="{key}"
@@ -233,8 +234,7 @@
                                 id="wfhBucketInput"
                                 value="{/currentWfhBucket}"
                                 type="Number"
-                                width="70px"
-                                placeholder="Qty"
+                                placeholder="No. of WFH"
                                 liveChange=".onWfhBucketChange"
                             />
 
