@@ -1,7 +1,7 @@
 sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap/m/MessageBox", "sap/ui/core/library"], function (Controller, JSONModel, MessageBox, sap_ui_core_library) {
   "use strict";
 
-  const ValueState = sap_ui_core_library["ValueState"];
+  const ValueState = sap_ui_core_library["ValueState"]; // Declare pdfjsLib for TypeScript if not using @types
   /**
    * @namespace com.infosys.hybridhorizon.controller
    */
@@ -377,7 +377,7 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         },
         title: {
           visible: true,
-          text: "Remaining Days Forecast"
+          text: "Utilization Forecast"
         },
         valueAxis: {
           title: {
@@ -504,6 +504,67 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
       const oDefaultData = this._generateDefaultMonthData();
       oModel.setProperty("/days", oDefaultData.days);
       this._sCurrentFilter = null;
+    },
+    // public onPressHelp(): void {
+    //     // 1. Retrieve the PDFViewer control with Type Casting
+    //     const oPdfViewer = this.getView()?.byId("pdfViewer") as PDFViewer;
+    //     if (oPdfViewer) {
+    //         // 2. Resolve the asset path using the UI5 module system
+    //         // Replace 'com/my/app' with your project's actual namespace
+    //         let sPdfPath: string = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
+    //         // 3. Set source and execute display logic
+    //         sPdfPath += "#toolbar=0&navpanes=0";
+    //         oPdfViewer.setSource(sPdfPath);
+    //         oPdfViewer.setIsTrustedSource(true);
+    //         oPdfViewer.open();
+    //     } else {
+    //         MessageToast.show("Unable to initialize the PDF Viewer. Please contact the administrator.");
+    //     }
+    // }
+    onPressHelp: async function _onPressHelp() {
+      const sPdfPath = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
+      const aPageImages = [];
+      try {
+        // 1. Load the PDF document
+        const pdf = await pdfjsLib.getDocument(sPdfPath).promise;
+
+        // 2. Loop through every page
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({
+            scale: 2
+          }); // Scale up for clarity
+
+          // 3. Create a hidden canvas to render the page
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+
+          // 4. Convert canvas to Image Data URL
+          aPageImages.push({
+            src: canvas.toDataURL("image/png")
+          });
+        }
+
+        // 5. Bind the images to the Carousel model
+        const oModel = new JSONModel({
+          pages: aPageImages
+        });
+        this.getView()?.setModel(oModel, "pdfModel");
+
+        // 6. Open the Dialog
+        this.byId("pdfCarouselDialog").open();
+      } catch (error) {
+        console.error("PDF Rendering Error:", error);
+      }
+    },
+    onCloseCarousel: function _onCloseCarousel() {
+      this.byId("pdfCarouselDialog").close();
     }
   });
   return Main;

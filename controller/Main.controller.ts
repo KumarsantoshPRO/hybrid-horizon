@@ -11,6 +11,11 @@ import { ValueState } from "sap/ui/core/library";
 import Input from "sap/m/Input";
 import CategoryAxis from "sap/makit/CategoryAxis";
 import Page from "sap/m/Page";
+import PDFViewer from "sap/m/PDFViewer";
+import Dialog from "sap/m/Dialog";
+
+// Declare pdfjsLib for TypeScript if not using @types
+declare const pdfjsLib: any;
 
 /**
  * @namespace com.infosys.hybridhorizon.controller
@@ -67,7 +72,7 @@ export default class Main extends Controller {
         oData.selectedMonthKey = 0;
         oData.wfhBucketsMap = sSavedBuckets ? JSON.parse(sSavedBuckets) : {};
         oData.currentWfhBucket = "";
-        oData.settingsTitle = "Custom Settings"; 
+        oData.settingsTitle = "Custom Settings";
         oData.calendarStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
 
         oData.minCalendarDate = minDate;
@@ -92,18 +97,18 @@ export default class Main extends Controller {
     private _generateDefaultMonthData(): any {
         const baseDate = new Date();
         const daysArray = [];
-        
+
         // Load monthly preferences map
         const sMonthlyPrefs = localStorage.getItem(this.WFO_PREFS_KEY);
         const oMonthlyPrefs = sMonthlyPrefs ? JSON.parse(sMonthlyPrefs) : {};
-        
+
         const sSavedOverrides = localStorage.getItem(this.OVERRIDES_KEY);
         const oOverrides = sSavedOverrides ? JSON.parse(sSavedOverrides) : {};
 
         for (let m = 0; m < 3; m++) {
             const year = baseDate.getFullYear();
             const month = baseDate.getMonth() + m;
-            
+
             // Get specific label for this month to check preferences
             const tempLabelDate = new Date(year, month, 1);
             const sMonthLabel = tempLabelDate.toLocaleString('default', { month: 'short' }) + " " + tempLabelDate.getFullYear().toString().substr(-2);
@@ -344,7 +349,7 @@ export default class Main extends Controller {
                     ]
                 }
             },
-            title: { visible: true, text: "Remaining Days Forecast" },
+            title: { visible: true, text: "Utilization Forecast" },
             valueAxis: { title: { visible: true, text: "Days" } },
             CategoryAxis: { title: { visible: true, text: "category" }, label: { visible: true } },
             legend: { visible: false, isScrollable: false, alignment: "center", type: "common" },
@@ -355,7 +360,7 @@ export default class Main extends Controller {
     private _initMultiComboSelection(): void {
         const oMultiCombo = this.getView()?.byId("daysSelector") as MultiComboBox;
         const oModel = this.getView()?.getModel() as JSONModel;
-        if(!oModel) return;
+        if (!oModel) return;
 
         const oViewDate = oModel.getProperty("/calendarStartDate") as Date;
         const aMonths = oModel.getProperty("/availableMonths") as any[];
@@ -368,7 +373,7 @@ export default class Main extends Controller {
 
         const sMonthlyPrefs = localStorage.getItem(this.WFO_PREFS_KEY);
         const oMonthlyPrefs = sMonthlyPrefs ? JSON.parse(sMonthlyPrefs) : {};
-        
+
         const aSelectedKeys = (currentMonthLabel && oMonthlyPrefs[currentMonthLabel]) ? oMonthlyPrefs[currentMonthLabel] : [];
         oMultiCombo?.setSelectedKeys(aSelectedKeys);
     }
@@ -402,7 +407,7 @@ export default class Main extends Controller {
         const iMonth = oDate.getMonth();
         const currentMonth = new Date().getMonth();
         let selectedMonthKey = 0;
-     
+
         if (currentMonth < iMonth) {
             selectedMonthKey = iMonth - currentMonth;
         } else if (currentMonth > iMonth) {
@@ -463,5 +468,64 @@ export default class Main extends Controller {
         const oDefaultData = this._generateDefaultMonthData();
         oModel.setProperty("/days", oDefaultData.days);
         this._sCurrentFilter = null;
+    }
+
+    // public onPressHelp(): void {
+    //     // 1. Retrieve the PDFViewer control with Type Casting
+    //     const oPdfViewer = this.getView()?.byId("pdfViewer") as PDFViewer;
+
+    //     if (oPdfViewer) {
+    //         // 2. Resolve the asset path using the UI5 module system
+    //         // Replace 'com/my/app' with your project's actual namespace
+    //         let sPdfPath: string = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
+    //         // 3. Set source and execute display logic
+    //         sPdfPath += "#toolbar=0&navpanes=0";
+    //         oPdfViewer.setSource(sPdfPath);
+    //         oPdfViewer.setIsTrustedSource(true);
+    //         oPdfViewer.open();
+    //     } else {
+    //         MessageToast.show("Unable to initialize the PDF Viewer. Please contact the administrator.");
+    //     }
+    // }
+
+    public async onPressHelp(): Promise<void> {
+        const sPdfPath = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
+        const aPageImages: { src: string }[] = [];
+
+        try {
+            // 1. Load the PDF document
+            const pdf = await pdfjsLib.getDocument(sPdfPath).promise;
+
+            // 2. Loop through every page
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 2 }); // Scale up for clarity
+
+                // 3. Create a hidden canvas to render the page
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                // 4. Convert canvas to Image Data URL
+                aPageImages.push({ src: canvas.toDataURL("image/png") });
+            }
+
+            // 5. Bind the images to the Carousel model
+            const oModel = new JSONModel({ pages: aPageImages });
+            this.getView()?.setModel(oModel, "pdfModel");
+
+            // 6. Open the Dialog
+            (this.byId("pdfCarouselDialog") as Dialog).open();
+
+        } catch (error) {
+            console.error("PDF Rendering Error:", error);
+        }
+    }
+
+    public onCloseCarousel() {
+        (this.byId("pdfCarouselDialog") as Dialog).close();
     }
 }

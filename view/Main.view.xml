@@ -206,14 +206,25 @@
 
                 <Popover
                     id="settings"
-                    title="{/settingsTitle}"
                     placement="Auto"
                 >
+                    <customHeader>
+                        <Bar>
+                            <contentLeft>
+                                <Title text="{/settingsTitle}" />
+                            </contentLeft>
+
+                            <contentRight>
+                                <Button
+                                    text="Guide"
+                                    press="onPressHelp"
+                                    tooltip="User Guide"
+                                />
+                            </contentRight>
+                        </Bar>
+                    </customHeader>
                     <content>
-                        <form:SimpleForm
-                            editable="true"
-                            layout="ColumnLayout"
-                        >
+                        <form:SimpleForm editable="true">
                             <Label text="WFH Bucket" />
                             <Select
                                 id="monthSelector"
@@ -238,7 +249,7 @@
                                 liveChange=".onWfhBucketChange"
                             />
 
-                            <Label text="Select Prefered WFO" />
+                            <Label text="Select Preferred WFO" />
                             <MultiComboBox
                                 id="daysSelector"
                                 items="{path: '/configDays'}"
@@ -256,7 +267,7 @@
                                 text="Close"
                                 icon="sap-icon://submit"
                                 iconDensityAware="true"
-                                tooltip="Reset to Default"
+                                tooltip="Close"
                                 type="Transparent"
                                 press="onOkPress"
                             />
@@ -273,6 +284,33 @@
                         </form:SimpleForm>
                     </content>
                 </Popover>
+                <Dialog
+                    id="pdfCarouselDialog"
+                    title="User Guide"
+                    contentWidth="80%"
+                    contentHeight="100%"
+                >
+                    <content>
+                        <Carousel
+                            id="pdfCarousel"
+                            pages="{pdfModel>/pages}"
+                            loop="false"
+                        >
+                            <pages>
+                                <Image
+                                    src="{pdfModel>src}"
+                                    width="100%"
+                                />
+                            </pages>
+                        </Carousel>
+                    </content>
+                    <buttons>
+                        <Button
+                            text="Close"
+                            press=".onCloseCarousel"
+                        />
+                    </buttons>
+                </Dialog>
             </dependents>
         </Page>
     </App>
