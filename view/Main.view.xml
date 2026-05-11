@@ -37,7 +37,6 @@
                     <HBox
                         justifyContent="SpaceAround"
                         class="sapUiNoMarginTopBottom"
-                     
                     >
                         <items>
                             <!-- <GenericTile
@@ -109,12 +108,15 @@
                             specialDates="{path: '/days', templateShareable: false}"
                             minDate="{/minCalendarDate}"
                             maxDate="{/maxCalendarDate}"
+                            showCurrentDateButton="false"
                         >
                             <u:specialDates>
                                 <u:DateTypeRange
                                     startDate="{path: 'date', formatter: '.formatter.formatDate'}"
                                     type="{type}"
                                     tooltip="{status}"
+                                    color="{= ${status}.includes('Half day') ? '#c5dbfc' : ${status}.includes('Holiday') ? '' : '' }"
+                                    secondaryType="{= ${status}.includes('Weekend') || ${status}.includes('Holiday')|| ${status}.includes('Leave')|| ${status}.includes('Half day') ? 'NonWorking' : 'Working' }"
                                 />
                             </u:specialDates>
                         </u:Calendar>
