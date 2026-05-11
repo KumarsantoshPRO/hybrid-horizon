@@ -1,7 +1,7 @@
-sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap/m/MessageBox", "sap/ui/core/library"], function (Controller, JSONModel, MessageBox, sap_ui_core_library) {
+sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap/m/MessageBox", "sap/ui/core/library", "sap/m/ActionSheet", "sap/m/Button"], function (Controller, JSONModel, MessageBox, sap_ui_core_library, ActionSheet, Button) {
   "use strict";
 
-  const ValueState = sap_ui_core_library["ValueState"]; // Declare pdfjsLib for TypeScript if not using @types
+  const ValueState = sap_ui_core_library["ValueState"];
   /**
    * @namespace com.infosys.hybridhorizon.controller
    */
@@ -195,18 +195,30 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         const isRemaining = dDate.getTime() >= oToday.getTime();
         return isSameMonth && isRemaining;
       });
-      const wfh = remainingMonthDays.filter(d => d.status === "WFH").length;
-      const wfo = remainingMonthDays.filter(d => d.status === "WFO").length;
-      const leaves = remainingMonthDays.filter(d => d.status === "Leave").length;
-      const holiday = remainingMonthDays.filter(d => d.status === "Holiday").length;
+
+      // Updated Logic to handle Half-Day status in charts
+      const wfh = remainingMonthDays.reduce((acc, d) => {
+        if (d.status === "WFH") return acc + 1;
+        if (d.status === "Half day(WFH)") return acc + 0.5;
+        return acc;
+      }, 0);
+      const wfo = remainingMonthDays.reduce((acc, d) => {
+        if (d.status === "WFO") return acc + 1;
+        if (d.status === "Half day(WFO)") return acc + 0.5;
+        return acc;
+      }, 0);
+      const leaves = remainingMonthDays.reduce((acc, d) => {
+        if (d.status === "Leave") return acc + 1;
+        if (d.status.includes("Half day")) return acc + 0.5;
+        return acc;
+      }, 0);
       const allMonthDays = aDays.filter(d => {
         const dDate = d.date instanceof Date ? d.date : new Date(d.date);
         return dDate.getMonth() === iMonth && dDate.getFullYear() === iYear;
       });
-      const wfhMonthTotal = allMonthDays.filter(d => d.status === "WFH").length;
-      const wfoMonthTotal = allMonthDays.filter(d => d.status === "WFO").length;
-      const leavesMonthTotal = allMonthDays.filter(d => d.status === "Leave").length;
-      const holidayMonthTotal = allMonthDays.filter(d => d.status === "Holiday").length;
+      const wfhMonthTotal = allMonthDays.filter(d => d.status === "WFH" || d.status === "Half day(WFH)").length;
+      const wfoMonthTotal = allMonthDays.filter(d => d.status === "WFO" || d.status === "Half day(WFO)").length;
+      const leavesMonthTotal = allMonthDays.filter(d => d.status.includes("Leave") || d.status.includes("Half day")).length;
       oModel.setProperty("/summary", {
         wfhTotal: wfhMonthTotal,
         wfoTotal: wfoMonthTotal,
@@ -260,8 +272,50 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         });
       }
     },
+    /**
+     * UPDATED: Intercepts 'Leave' to show specific options
+     */
     onStatusChange: function _onStatusChange(oEvent) {
       const sStatus = oEvent.getParameter("listItem").getTitle();
+      (this.getView()?.byId("statusPopover")).close();
+      if (sStatus === "Leave") {
+        this._openLeaveOptions();
+      } else {
+        this._updateDateStatus(sStatus);
+      }
+    },
+    _openLeaveOptions: function _openLeaveOptions() {
+      const oActionSheet = new ActionSheet({
+        title: "Select Leave Type",
+        showCancelButton: true,
+        buttons: [new Button({
+          text: "Full Day Leave",
+          icon: "sap-icon://flight",
+          press: () => {
+            this._updateDateStatus("Leave");
+            oActionSheet.close();
+          }
+        }), new Button({
+          text: "Half Day Leave(+WFH)",
+          icon: "sap-icon://home",
+          press: () => {
+            this._updateDateStatus("Half day(WFH)");
+            oActionSheet.close();
+          }
+        }), new Button({
+          text: "Half Day Leave(+WFO)",
+          icon: "sap-icon://building",
+          press: () => {
+            this._updateDateStatus("Half day(WFO)");
+            oActionSheet.close();
+          }
+        })]
+      });
+      this.getView()?.addDependent(oActionSheet);
+      const oCalendar = this.getView()?.byId("calendarId"); // Ensure ID exists in XML
+      oActionSheet.openBy(oCalendar || this.getView()?.byId("statusPopover"));
+    },
+    _updateDateStatus: function _updateDateStatus(sStatus) {
       const oModel = this.getView()?.getModel();
       const aDays = oModel.getProperty("/days");
       if (this._tempSelectedDate) {
@@ -282,7 +336,6 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
           this._updateChartData();
         }
       }
-      (this.getView()?.byId("statusPopover")).close();
     },
     onSelectionChange: function _onSelectionChange(oEvent) {
       const aSelectedKeys = oEvent.getSource().getSelectedKeys();
@@ -400,14 +453,14 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         }
       });
       oVizFrame?.attachSelectData(this.onBarSelect, this);
-      oVizFrame?.attachDeselectData(this._resetCalendar, this); // Addition: Handle background clicks
+      oVizFrame?.attachDeselectData(this._resetCalendar, this);
     },
     onBarSelect: function _onBarSelect(oEvent) {
       const aData = oEvent.getParameter("data");
       if (aData && aData.length > 0) {
         const sCategory = aData[0].data.Category;
         const sType = this._getColorByType(sCategory);
-        this._toggleCalendarFilter("graphClick", sCategory, sType);
+        this._toggleCalendarFilter("vizClicked", sCategory, sType);
       } else {
         this._resetCalendar();
       }
@@ -476,16 +529,20 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         "WFH": "Type08",
         "WFO": "Type02",
         "Leave": "Type06",
+        "Half day(WFH)": "Type05",
+        // Blue-Yellow tint
+        "Half day(WFO)": "Type01",
+        // Distinct from others
         "Holiday": "Type04",
         "Workdays": "Type01"
       };
       return m[s] || "None";
     },
     onWFHPress: function _onWFHPress() {
-      this._toggleCalendarFilter("tileClick", "WFH", "Type08");
+      this._toggleCalendarFilter("tileClicked", "WFH", "Type08");
     },
     onWFOPress: function _onWFOPress() {
-      this._toggleCalendarFilter("tileClick", "WFO", "Type02");
+      this._toggleCalendarFilter("tileClicked", "WFO", "Type02");
     },
     _toggleCalendarFilter: function _toggleCalendarFilter(sClicked, sStatus, sActiveType) {
       const oModel = this.getView()?.getModel();
@@ -501,10 +558,10 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         const dDate = oDay.date instanceof Date ? oDay.date : new Date(oDay.date);
         const isFutureOrToday = dDate.getTime() >= oToday.getTime();
         let bIsMatch = false;
-        if (sClicked === "tileClick") {
-          bIsMatch = sStatus === "Workdays" ? oDay.status === "WFH" || oDay.status === "WFO" : oDay.status === sStatus;
+        if (sClicked === "tileClicked") {
+          bIsMatch = sStatus === "Workdays" ? oDay.status.includes("WFH") || oDay.status.includes("WFO") : oDay.status.includes(sStatus);
         } else if (isFutureOrToday) {
-          bIsMatch = sStatus === "Workdays" ? oDay.status === "WFH" || oDay.status === "WFO" : oDay.status === sStatus;
+          bIsMatch = sStatus === "Workdays" ? oDay.status.includes("WFH") || oDay.status.includes("WFO") : oDay.status.includes(sStatus);
         }
         return {
           ...oDay,
@@ -513,10 +570,6 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
       });
       oModel.setProperty("/days", aUpdatedDays);
     },
-    /**
-     * Logic updated: Resets calendar by restoring types from statuses
-     * without regenerating the entire month dataset.
-     */
     _resetCalendar: function _resetCalendar() {
       const oModel = this.getView()?.getModel();
       const aDays = oModel.getProperty("/days");
