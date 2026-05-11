@@ -407,7 +407,7 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
       if (aData && aData.length > 0) {
         const sCategory = aData[0].data.Category;
         const sType = this._getColorByType(sCategory);
-        this._toggleCalendarFilter(sCategory, sType);
+        this._toggleCalendarFilter("graphClick", sCategory, sType);
       } else {
         this._resetCalendar();
       }
@@ -482,12 +482,12 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
       return m[s] || "None";
     },
     onWFHPress: function _onWFHPress() {
-      this._toggleCalendarFilter("WFH", "Type08");
+      this._toggleCalendarFilter("tileClick", "WFH", "Type08");
     },
     onWFOPress: function _onWFOPress() {
-      this._toggleCalendarFilter("WFO", "Type02");
+      this._toggleCalendarFilter("tileClick", "WFO", "Type02");
     },
-    _toggleCalendarFilter: function _toggleCalendarFilter(sStatus, sActiveType) {
+    _toggleCalendarFilter: function _toggleCalendarFilter(sClicked, sStatus, sActiveType) {
       const oModel = this.getView()?.getModel();
       const aDays = oModel.getProperty("/days");
       const oToday = new Date();
@@ -501,7 +501,9 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         const dDate = oDay.date instanceof Date ? oDay.date : new Date(oDay.date);
         const isFutureOrToday = dDate.getTime() >= oToday.getTime();
         let bIsMatch = false;
-        if (isFutureOrToday) {
+        if (sClicked === "tileClick") {
+          bIsMatch = sStatus === "Workdays" ? oDay.status === "WFH" || oDay.status === "WFO" : oDay.status === sStatus;
+        } else if (isFutureOrToday) {
           bIsMatch = sStatus === "Workdays" ? oDay.status === "WFH" || oDay.status === "WFO" : oDay.status === sStatus;
         }
         return {

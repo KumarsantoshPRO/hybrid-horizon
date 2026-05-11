@@ -22,8 +22,8 @@ declare const pdfjsLib: any;
  */
 export default class Main extends Controller {
     private _tempSelectedDate: Date | null = null;
-    private readonly DAYS_STORAGE_KEY = "selected_work_days"; 
-    private readonly WFO_PREFS_KEY = "monthly_wfo_preferences"; 
+    private readonly DAYS_STORAGE_KEY = "selected_work_days";
+    private readonly WFO_PREFS_KEY = "monthly_wfo_preferences";
     private readonly BUCKET_MAP_KEY = "wfh_buckets_map";
     private readonly DATA_STORAGE_KEY = "workTrackerData";
     private readonly OVERRIDES_KEY = "manual_date_overrides";
@@ -166,7 +166,7 @@ export default class Main extends Controller {
         oModel.setProperty("/calendarStartDate", oNewDate);
 
         this._refreshActiveMonthData();
-        this._initMultiComboSelection(); 
+        this._initMultiComboSelection();
     }
 
     public onWfhBucketChange(oEvent: any): void {
@@ -362,7 +362,7 @@ export default class Main extends Controller {
         if (aData && aData.length > 0) {
             const sCategory = aData[0].data.Category;
             const sType = this._getColorByType(sCategory);
-            this._toggleCalendarFilter(sCategory, sType);
+            this._toggleCalendarFilter("graphClick", sCategory, sType);
         } else {
             this._resetCalendar();
         }
@@ -401,7 +401,7 @@ export default class Main extends Controller {
 
     public OnSettings(oEvent: Event): void {
         const oButton = oEvent.getSource() as any;
-        this._refreshActiveMonthData(); 
+        this._refreshActiveMonthData();
         (this.getView()?.byId("settings") as Popover).openBy(oButton);
     }
 
@@ -441,25 +441,25 @@ export default class Main extends Controller {
     }
 
     private _getColorByType(s: string): string {
-        const m: any = { 
-            "WFH": "Type08", 
-            "WFO": "Type02", 
-            "Leave": "Type06", 
+        const m: any = {
+            "WFH": "Type08",
+            "WFO": "Type02",
+            "Leave": "Type06",
             "Holiday": "Type04",
-            "Workdays": "Type01" 
+            "Workdays": "Type01"
         };
         return m[s] || "None";
     }
 
     public onWFHPress(): void {
-        this._toggleCalendarFilter("WFH", "Type08");
+        this._toggleCalendarFilter("tileClick", "WFH", "Type08");
     }
 
     public onWFOPress(): void {
-        this._toggleCalendarFilter("WFO", "Type02");
+        this._toggleCalendarFilter("tileClick", "WFO", "Type02");
     }
 
-    private _toggleCalendarFilter(sStatus: string, sActiveType: string): void {
+    private _toggleCalendarFilter(sClicked: string, sStatus: string, sActiveType: string): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const aDays = oModel.getProperty("/days") as any[];
         const oToday = new Date();
@@ -476,10 +476,13 @@ export default class Main extends Controller {
             const isFutureOrToday = dDate.getTime() >= oToday.getTime();
 
             let bIsMatch = false;
-            if (isFutureOrToday) {
+            if (sClicked === "tileClick") {
                 bIsMatch = sStatus === "Workdays" ? (oDay.status === "WFH" || oDay.status === "WFO") : (oDay.status === sStatus);
             }
-            
+            else if (isFutureOrToday) {
+                bIsMatch = sStatus === "Workdays" ? (oDay.status === "WFH" || oDay.status === "WFO") : (oDay.status === sStatus);
+            }
+
             return {
                 ...oDay,
                 type: bIsMatch ? sActiveType : "None"
@@ -495,7 +498,7 @@ export default class Main extends Controller {
     public _resetCalendar(): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const aDays = oModel.getProperty("/days") as any[];
-        
+
         if (!aDays) return;
 
         const aResetDays = aDays.map((oDay: any) => {
@@ -518,7 +521,7 @@ export default class Main extends Controller {
 
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
-                const viewport = page.getViewport({ scale: 2 }); 
+                const viewport = page.getViewport({ scale: 2 });
 
                 const canvas = document.createElement("canvas");
                 const context = canvas.getContext("2d");
