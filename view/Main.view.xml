@@ -33,6 +33,69 @@
                     width="100%"
                     alignItems="Stretch"
                 >
+                    <!-- Tiles -->
+                    <HBox
+                        justifyContent="SpaceAround"
+                        class="sapUiNoMarginTopBottom"
+                     
+                    >
+                        <items>
+                            <!-- <GenericTile
+                                header="Workdays"
+                                frameType="Auto"
+                                press="._resetCalendar"
+                                class="sapUiTinyMargin"
+                            >
+                                <tileContent>
+                                    <TileContent footer="Current Month">
+                                        <NumericContent
+                                            value="{/summary/workdays}"
+                                            valueColor="Neutral"
+                                            indicator="None"
+                                        />
+                                    </TileContent>
+                                </tileContent>
+                            </GenericTile> -->
+                            <GenericTile
+                                header="Home"
+                                frameType="OneByHalf"
+                                press="onWFHPress"
+                                class="sapUiTinyMargin"
+                            >
+                                <tileContent>
+                                    <TileContent footer="Current Month">
+                                        <NumericContent
+                                            value="{/summary/wfhTotal}"
+                                            valueColor="Good"
+                                            indicator="None"
+                                            icon="sap-icon://home"
+                                            animateTextChange="true"
+                                        />
+                                    </TileContent>
+                                </tileContent>
+                            </GenericTile>
+
+                            <GenericTile
+                                header="Office"
+                                frameType="OneByHalf"
+                                press="onWFOPress"
+                                class="sapUiTinyMargin"
+                            >
+                                <tileContent>
+                                    <TileContent footer="Current Month">
+                                        <NumericContent
+                                            value="{/summary/wfoTotal}"
+                                            valueColor="Critical"
+                                            indicator="None"
+                                            icon="sap-icon://building"
+                                            animateTextChange="true"
+                                        />
+                                    </TileContent>
+                                </tileContent>
+                            </GenericTile>
+                        </items>
+                    </HBox>
+
                     <!-- Calendar -->
                     <VBox
                         width="100%"
@@ -65,69 +128,6 @@
                         showCloseButton="true"
                         class="sapUiMediumMarginBottom"
                     />
-                    <!-- Tiles -->
-                    <HBox
-                        justifyContent="SpaceAround"
-                        class="sapUiNoMarginTopBottom"
-                        height="90%"
-                    >
-                        <items>
-                            <!-- <GenericTile
-                                header="Workdays"
-                                frameType="Auto"
-                                press="._resetCalendar"
-                                class="sapUiTinyMargin"
-                            >
-                                <tileContent>
-                                    <TileContent footer="Current Month">
-                                        <NumericContent
-                                            value="{/summary/workdays}"
-                                            valueColor="Neutral"
-                                            indicator="None"
-                                        />
-                                    </TileContent>
-                                </tileContent>
-                            </GenericTile> -->
-                            <GenericTile
-                                header="WFH Days"
-                                frameType="OneByHalf"
-                                press="onWFHPress"
-                                class="sapUiTinyMargin"
-                            >
-                                <tileContent>
-                                    <TileContent footer="Current Month">
-                                        <NumericContent
-                                            value="{/summary/wfhTotal}"
-                                            valueColor="Good"
-                                            indicator="None"
-                                            icon="sap-icon://home"
-                                            animateTextChange="true"
-                                        />
-                                    </TileContent>
-                                </tileContent>
-                            </GenericTile>
-
-                            <GenericTile
-                                header="WFO Days"
-                                frameType="OneByHalf"
-                                press="onWFOPress"
-                                class="sapUiTinyMargin"
-                            >
-                                <tileContent>
-                                    <TileContent footer="Current Month">
-                                        <NumericContent
-                                            value="{/summary/wfoTotal}"
-                                            valueColor="Critical"
-                                            indicator="None"
-                                            icon="sap-icon://building"
-                                            animateTextChange="true"
-                                        />
-                                    </TileContent>
-                                </tileContent>
-                            </GenericTile>
-                        </items>
-                    </HBox>
-
                     <!-- Chart -->
                     <viz:VizFrame
                         id="idVizFrame"

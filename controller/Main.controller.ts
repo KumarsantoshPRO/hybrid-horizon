@@ -22,8 +22,8 @@ declare const pdfjsLib: any;
  */
 export default class Main extends Controller {
     private _tempSelectedDate: Date | null = null;
-    private readonly DAYS_STORAGE_KEY = "selected_work_days"; // Legacy key
-    private readonly WFO_PREFS_KEY = "monthly_wfo_preferences"; // New key for per-month WFO
+    private readonly DAYS_STORAGE_KEY = "selected_work_days"; 
+    private readonly WFO_PREFS_KEY = "monthly_wfo_preferences"; 
     private readonly BUCKET_MAP_KEY = "wfh_buckets_map";
     private readonly DATA_STORAGE_KEY = "workTrackerData";
     private readonly OVERRIDES_KEY = "manual_date_overrides";
@@ -98,7 +98,6 @@ export default class Main extends Controller {
         const baseDate = new Date();
         const daysArray = [];
 
-        // Load monthly preferences map
         const sMonthlyPrefs = localStorage.getItem(this.WFO_PREFS_KEY);
         const oMonthlyPrefs = sMonthlyPrefs ? JSON.parse(sMonthlyPrefs) : {};
 
@@ -109,7 +108,6 @@ export default class Main extends Controller {
             const year = baseDate.getFullYear();
             const month = baseDate.getMonth() + m;
 
-            // Get specific label for this month to check preferences
             const tempLabelDate = new Date(year, month, 1);
             const sMonthLabel = tempLabelDate.toLocaleString('default', { month: 'short' }) + " " + tempLabelDate.getFullYear().toString().substr(-2);
             const aWorkDayKeys = oMonthlyPrefs[sMonthLabel] || [];
@@ -153,7 +151,6 @@ export default class Main extends Controller {
         if (currentMonthLabel) {
             const oMap = oModel.getProperty("/wfhBucketsMap");
             oModel.setProperty("/currentWfhBucket", oMap[currentMonthLabel] || "");
-            // Update Popover Title Requirement
             oModel.setProperty("/settingsTitle", currentMonthLabel);
         }
         this._updateChartData();
@@ -169,7 +166,7 @@ export default class Main extends Controller {
         oModel.setProperty("/calendarStartDate", oNewDate);
 
         this._refreshActiveMonthData();
-        this._initMultiComboSelection(); // Refresh MultiCombo selection for selected month
+        this._initMultiComboSelection(); 
     }
 
     public onWfhBucketChange(oEvent: any): void {
@@ -355,6 +352,20 @@ export default class Main extends Controller {
             legend: { visible: false, isScrollable: false, alignment: "center", type: "common" },
             legendGroup: { layout: { position: "bottom" } }
         });
+
+        oVizFrame?.attachSelectData(this.onBarSelect, this);
+        oVizFrame?.attachDeselectData(this._resetCalendar, this); // Addition: Handle background clicks
+    }
+
+    public onBarSelect(oEvent: any): void {
+        const aData = oEvent.getParameter("data");
+        if (aData && aData.length > 0) {
+            const sCategory = aData[0].data.Category;
+            const sType = this._getColorByType(sCategory);
+            this._toggleCalendarFilter(sCategory, sType);
+        } else {
+            this._resetCalendar();
+        }
     }
 
     private _initMultiComboSelection(): void {
@@ -390,7 +401,7 @@ export default class Main extends Controller {
 
     public OnSettings(oEvent: Event): void {
         const oButton = oEvent.getSource() as any;
-        this._refreshActiveMonthData(); // Ensure title is current before opening
+        this._refreshActiveMonthData(); 
         (this.getView()?.byId("settings") as Popover).openBy(oButton);
     }
 
@@ -411,7 +422,6 @@ export default class Main extends Controller {
         if (currentMonth < iMonth) {
             selectedMonthKey = iMonth - currentMonth;
         } else if (currentMonth > iMonth) {
-            // Handle year wrap if necessary, but following original logic:
             selectedMonthKey = 0;
         }
 
@@ -431,7 +441,13 @@ export default class Main extends Controller {
     }
 
     private _getColorByType(s: string): string {
-        const m: any = { "WFH": "Type08", "WFO": "Type02", "Leave": "Type06", "Holiday": "Type04" };
+        const m: any = { 
+            "WFH": "Type08", 
+            "WFO": "Type02", 
+            "Leave": "Type06", 
+            "Holiday": "Type04",
+            "Workdays": "Type01" 
+        };
         return m[s] || "None";
     }
 
@@ -446,78 +462,75 @@ export default class Main extends Controller {
     private _toggleCalendarFilter(sStatus: string, sActiveType: string): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const aDays = oModel.getProperty("/days") as any[];
+        const oToday = new Date();
+        oToday.setHours(0, 0, 0, 0);
 
         if (this._sCurrentFilter === sStatus) {
             this._resetCalendar();
-            this._sCurrentFilter = null;
             return;
         }
 
         this._sCurrentFilter = sStatus;
         const aUpdatedDays = aDays.map((oDay: any) => {
+            const dDate = (oDay.date instanceof Date) ? oDay.date : new Date(oDay.date);
+            const isFutureOrToday = dDate.getTime() >= oToday.getTime();
+
+            let bIsMatch = false;
+            if (isFutureOrToday) {
+                bIsMatch = sStatus === "Workdays" ? (oDay.status === "WFH" || oDay.status === "WFO") : (oDay.status === sStatus);
+            }
+            
             return {
                 ...oDay,
-                type: oDay.status === sStatus ? sActiveType : "None"
+                type: bIsMatch ? sActiveType : "None"
             };
         });
         oModel.setProperty("/days", aUpdatedDays);
     }
 
+    /**
+     * Logic updated: Resets calendar by restoring types from statuses
+     * without regenerating the entire month dataset.
+     */
     public _resetCalendar(): void {
         const oModel = this.getView()?.getModel() as JSONModel;
-        const oDefaultData = this._generateDefaultMonthData();
-        oModel.setProperty("/days", oDefaultData.days);
+        const aDays = oModel.getProperty("/days") as any[];
+        
+        if (!aDays) return;
+
+        const aResetDays = aDays.map((oDay: any) => {
+            return {
+                ...oDay,
+                type: this._getColorByType(oDay.status)
+            };
+        });
+
+        oModel.setProperty("/days", aResetDays);
         this._sCurrentFilter = null;
     }
-
-    // public onPressHelp(): void {
-    //     // 1. Retrieve the PDFViewer control with Type Casting
-    //     const oPdfViewer = this.getView()?.byId("pdfViewer") as PDFViewer;
-
-    //     if (oPdfViewer) {
-    //         // 2. Resolve the asset path using the UI5 module system
-    //         // Replace 'com/my/app' with your project's actual namespace
-    //         let sPdfPath: string = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
-    //         // 3. Set source and execute display logic
-    //         sPdfPath += "#toolbar=0&navpanes=0";
-    //         oPdfViewer.setSource(sPdfPath);
-    //         oPdfViewer.setIsTrustedSource(true);
-    //         oPdfViewer.open();
-    //     } else {
-    //         MessageToast.show("Unable to initialize the PDF Viewer. Please contact the administrator.");
-    //     }
-    // }
 
     public async onPressHelp(): Promise<void> {
         const sPdfPath = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
         const aPageImages: { src: string }[] = [];
 
         try {
-            // 1. Load the PDF document
             const pdf = await pdfjsLib.getDocument(sPdfPath).promise;
 
-            // 2. Loop through every page
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
-                const viewport = page.getViewport({ scale: 2 }); // Scale up for clarity
+                const viewport = page.getViewport({ scale: 2 }); 
 
-                // 3. Create a hidden canvas to render the page
                 const canvas = document.createElement("canvas");
                 const context = canvas.getContext("2d");
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
 
                 await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-                // 4. Convert canvas to Image Data URL
                 aPageImages.push({ src: canvas.toDataURL("image/png") });
             }
 
-            // 5. Bind the images to the Carousel model
             const oModel = new JSONModel({ pages: aPageImages });
             this.getView()?.setModel(oModel, "pdfModel");
-
-            // 6. Open the Dialog
             (this.byId("pdfCarouselDialog") as Dialog).open();
 
         } catch (error) {
