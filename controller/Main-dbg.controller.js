@@ -529,9 +529,9 @@ sap.ui.define(["sap/ui/core/mvc/Controller", "sap/ui/model/json/JSONModel", "sap
         "WFH": "Type08",
         "WFO": "Type02",
         "Leave": "Type06",
-        "Half day(WFH)": "Type05",
+        "Half day(WFH)": "Type08",
         // Blue-Yellow tint
-        "Half day(WFO)": "Type01",
+        "Half day(WFO)": "Type02",
         // Distinct from others
         "Holiday": "Type04",
         "Workdays": "Type01"
