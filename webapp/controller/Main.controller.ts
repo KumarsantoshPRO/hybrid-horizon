@@ -9,8 +9,11 @@ import MultiComboBox from "sap/m/MultiComboBox";
 import Popover from "sap/m/Popover";
 import { ValueState } from "sap/ui/core/library";
 import Input from "sap/m/Input";
-import CategoryAxis from "sap/makit/CategoryAxis";
-import Page from "sap/m/Page";
+import Dialog from "sap/m/Dialog";
+import ActionSheet from "sap/m/ActionSheet";
+import Button from "sap/m/Button";
+
+declare const pdfjsLib: any;
 
 /**
  * @namespace com.infosys.hybridhorizon.controller
@@ -18,6 +21,7 @@ import Page from "sap/m/Page";
 export default class Main extends Controller {
     private _tempSelectedDate: Date | null = null;
     private readonly DAYS_STORAGE_KEY = "selected_work_days";
+    private readonly WFO_PREFS_KEY = "monthly_wfo_preferences";
     private readonly BUCKET_MAP_KEY = "wfh_buckets_map";
     private readonly DATA_STORAGE_KEY = "workTrackerData";
     private readonly OVERRIDES_KEY = "manual_date_overrides";
@@ -40,21 +44,12 @@ export default class Main extends Controller {
         this._refreshActiveMonthData();
     }
 
-
-
-
-
     private _loadInitialData(): any {
         const sSavedData = localStorage.getItem(this.DATA_STORAGE_KEY);
         const sSavedBuckets = localStorage.getItem(this.BUCKET_MAP_KEY);
 
         const now = new Date();
-
-        // 1. Min Date: First day of the current month
         const minDate = new Date(now.getFullYear(), now.getMonth(), 1);
-
-        // 2. Max Date: Last day of the month (current + 2 months)
-        // April (0) -> June (2). We set month to now + 3 and date to 0 to get last day of month + 2
         const maxDate = new Date(now.getFullYear(), now.getMonth() + 3, 0);
 
         let oData;
@@ -75,15 +70,13 @@ export default class Main extends Controller {
         oData.selectedMonthKey = 0;
         oData.wfhBucketsMap = sSavedBuckets ? JSON.parse(sSavedBuckets) : {};
         oData.currentWfhBucket = "";
-        // Ensure the calendar opens on the current month
+        oData.settingsTitle = "Custom Settings";
         oData.calendarStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Add restriction dates to the model
         oData.minCalendarDate = minDate;
         oData.maxCalendarDate = maxDate;
         oData.messageStripText = "";
         oData.type = "None";
-
 
         return oData;
     }
@@ -102,27 +95,32 @@ export default class Main extends Controller {
     private _generateDefaultMonthData(): any {
         const baseDate = new Date();
         const daysArray = [];
-        const sSavedKeys = localStorage.getItem(this.DAYS_STORAGE_KEY);
-        const aWorkDayKeys = sSavedKeys ? JSON.parse(sSavedKeys) : [];
-        // Get Manual Overrides (Leave, Holiday, etc.)
+
+        const sMonthlyPrefs = localStorage.getItem(this.WFO_PREFS_KEY);
+        const oMonthlyPrefs = sMonthlyPrefs ? JSON.parse(sMonthlyPrefs) : {};
+
         const sSavedOverrides = localStorage.getItem(this.OVERRIDES_KEY);
         const oOverrides = sSavedOverrides ? JSON.parse(sSavedOverrides) : {};
+
         for (let m = 0; m < 3; m++) {
             const year = baseDate.getFullYear();
             const month = baseDate.getMonth() + m;
+
+            const tempLabelDate = new Date(year, month, 1);
+            const sMonthLabel = tempLabelDate.toLocaleString('default', { month: 'short' }) + " " + tempLabelDate.getFullYear().toString().substr(-2);
+            const aWorkDayKeys = oMonthlyPrefs[sMonthLabel] || [];
+
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             for (let i = 1; i <= daysInMonth; i++) {
                 const current = new Date(year, month, i);
                 const sDateKey = current.toDateString();
                 const dayOfWeek = current.getDay();
                 let status, type;
-                // PRIORITY 1: Check if user manually changed this specific day
+
                 if (oOverrides[sDateKey]) {
                     status = oOverrides[sDateKey].status;
                     type = oOverrides[sDateKey].type;
-                }
-                // PRIORITY 2: Default logic for weekends and workdays
-                else {
+                } else {
                     if (dayOfWeek === 0 || dayOfWeek === 6) {
                         status = "Weekend"; type = "Type14";
                     } else if (aWorkDayKeys.includes(dayOfWeek.toString())) {
@@ -131,22 +129,17 @@ export default class Main extends Controller {
                         status = "WFH"; type = "Type08";
                     }
                 }
-
                 daysArray.push({ date: current, status: status, type: type });
             }
         }
         return { days: daysArray, chartData: [] };
     }
 
-
-
-
     private _refreshActiveMonthData(): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const oViewDate = oModel.getProperty("/calendarStartDate") as Date;
         const aMonths = oModel.getProperty("/availableMonths") as any[];
 
-        // Find label for current view (e.g., "Apr 26")
         const currentMonthLabel = aMonths.find(m => {
             const d = new Date();
             d.setMonth(d.getMonth() + parseInt(m.key));
@@ -156,6 +149,7 @@ export default class Main extends Controller {
         if (currentMonthLabel) {
             const oMap = oModel.getProperty("/wfhBucketsMap");
             oModel.setProperty("/currentWfhBucket", oMap[currentMonthLabel] || "");
+            oModel.setProperty("/settingsTitle", currentMonthLabel);
         }
         this._updateChartData();
     }
@@ -170,8 +164,7 @@ export default class Main extends Controller {
         oModel.setProperty("/calendarStartDate", oNewDate);
 
         this._refreshActiveMonthData();
-        // (this.getView()?.byId("settings") as Popover).close();
-
+        this._initMultiComboSelection();
     }
 
     public onWfhBucketChange(oEvent: any): void {
@@ -191,9 +184,7 @@ export default class Main extends Controller {
             oMap[currentMonthLabel] = sValue;
             localStorage.setItem(this.BUCKET_MAP_KEY, JSON.stringify(oMap));
             this._updateChartData();
-
         }
-
     }
 
     private _updateChartData(): void {
@@ -205,44 +196,44 @@ export default class Main extends Controller {
 
         const iMonth = oViewDate.getMonth();
         const iYear = oViewDate.getFullYear();
-
-        // Get the current date and set time to 0 to compare dates only
         const oToday = new Date();
         oToday.setHours(0, 0, 0, 0);
 
-        // 1. Filter for currently visible month AND only future dates (Remaining days)
         const remainingMonthDays = aDays.filter(d => {
             const dDate = (d.date instanceof Date) ? d.date : new Date(d.date);
-
             const isSameMonth = dDate.getMonth() === iMonth && dDate.getFullYear() === iYear;
-            // Check if the date is today or in the future
             const isRemaining = dDate.getTime() >= oToday.getTime();
-
             return isSameMonth && isRemaining;
         });
 
-        // 2. Use the 'remainingMonthDays' variable for your calculations
-        const wfh = remainingMonthDays.filter(d => d.status === "WFH").length;
-        const wfo = remainingMonthDays.filter(d => d.status === "WFO").length;
-        const leaves = remainingMonthDays.filter(d => d.status === "Leave").length;
-        const holiday = remainingMonthDays.filter(d => d.status === "Holiday").length;
+        // Updated Logic to handle Half-Day status in charts
+        const wfh = remainingMonthDays.reduce((acc, d) => {
+            if (d.status === "WFH") return acc + 1;
+            if (d.status === "Half day(WFH)") return acc + 0.5;
+            return acc;
+        }, 0);
 
-        // 1. Get the full list of days for the currently visible month (ignoring 'today' constraint)
+        const wfo = remainingMonthDays.reduce((acc, d) => {
+            if (d.status === "WFO") return acc + 1;
+            if (d.status === "Half day(WFO)") return acc + 0.5;
+            return acc;
+        }, 0);
+
+        const leaves = remainingMonthDays.reduce((acc, d) => {
+            if (d.status === "Leave") return acc + 1;
+            if (d.status.includes("Half day")) return acc + 0.5;
+            return acc;
+        }, 0);
+
         const allMonthDays = aDays.filter(d => {
             const dDate = (d.date instanceof Date) ? d.date : new Date(d.date);
-
-            // Only check if the date belongs to the selected month and year
             return dDate.getMonth() === iMonth && dDate.getFullYear() === iYear;
         });
 
-        // 2. Calculate totals based on the entire month's data
-        const wfhMonthTotal = allMonthDays.filter(d => d.status === "WFH").length;
-        const wfoMonthTotal = allMonthDays.filter(d => d.status === "WFO").length;
-        const leavesMonthTotal = allMonthDays.filter(d => d.status === "Leave").length;
-        const holidayMonthTotal = allMonthDays.filter(d => d.status === "Holiday").length;
+        const wfhMonthTotal = allMonthDays.filter(d => d.status === "WFH" || d.status === "Half day(WFH)").length;
+        const wfoMonthTotal = allMonthDays.filter(d => d.status === "WFO" || d.status === "Half day(WFO)").length;
+        const leavesMonthTotal = allMonthDays.filter(d => d.status.includes("Leave") || d.status.includes("Half day")).length;
 
-        // 3. Update the Summary Data in the Model
-        // This will update the 'WFH Days' and 'WFO Days' tiles shown in your UI
         oModel.setProperty("/summary", {
             wfhTotal: wfhMonthTotal,
             wfoTotal: wfoMonthTotal,
@@ -250,7 +241,6 @@ export default class Main extends Controller {
             workdays: wfhMonthTotal + wfoMonthTotal
         });
 
-        // Update the VizFrame Data
         oModel.setProperty("/chartData", [
             { category: "Workdays", value: wfh + wfo },
             { category: "WFH", value: wfh },
@@ -260,6 +250,7 @@ export default class Main extends Controller {
 
         this._validateWfhBucket(wfhMonthTotal);
     }
+
     private _validateWfhBucket(iCurrentWfh: number): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const sBucket = oModel.getProperty("/currentWfhBucket");
@@ -269,73 +260,106 @@ export default class Main extends Controller {
             oInput.setValueState(ValueState.Error);
             message = `WFH Over-Utilized:${iCurrentWfh}/${sBucket}`;
             oInput.setValueStateText(message);
-
-            oModel.setProperty("/message", {
-                messageStripText: message,
-                type: 'Error',
-                visible: true
-            });
-
+            oModel.setProperty("/message", { messageStripText: message, type: 'Error', visible: true });
         } else if (sBucket && parseInt(sBucket) > iCurrentWfh) {
             oInput.setValueState(ValueState.Warning);
             message = `WFH Under-Utilized:${iCurrentWfh}/${sBucket}`;
             oInput.setValueStateText(message);
-            oModel.setProperty("/message", {
-                messageStripText: message,
-                type: 'Information',
-                visible: true
-            });
-
-        }
-        else {
+            oModel.setProperty("/message", { messageStripText: message, type: 'Information', visible: true });
+        } else {
             oInput.setValueState(ValueState.None);
-            oModel.setProperty("/message", {
-                messageStripText: message,
-                type: 'None',
-                visible: false
-            });
+            oModel.setProperty("/message", { messageStripText: message, type: 'None', visible: false });
         }
     }
 
+    /**
+     * UPDATED: Intercepts 'Leave' to show specific options
+     */
     public onStatusChange(oEvent: any): void {
         const sStatus = oEvent.getParameter("listItem").getTitle();
+        (this.getView()?.byId("statusPopover") as Popover).close();
+
+        if (sStatus === "Leave") {
+            this._openLeaveOptions();
+        } else {
+            this._updateDateStatus(sStatus);
+        }
+    }
+
+    private _openLeaveOptions(): void {
+        const oActionSheet = new ActionSheet({
+            title: "Select Leave Type",
+            showCancelButton: true,
+            buttons: [
+                new Button({
+                    text: "Full Day Leave",
+                    icon: "sap-icon://flight",
+                    press: () => { this._updateDateStatus("Leave"); oActionSheet.close(); }
+                }),
+                new Button({
+                    text: "Half Day Leave(+WFH)",
+                    icon: "sap-icon://home",
+                    press: () => { this._updateDateStatus("Half day(WFH)"); oActionSheet.close(); }
+                }),
+                new Button({
+                    text: "Half Day Leave(+WFO)",
+                    icon: "sap-icon://building",
+                    press: () => { this._updateDateStatus("Half day(WFO)"); oActionSheet.close(); }
+                })
+            ]
+        });
+
+        this.getView()?.addDependent(oActionSheet);
+        const oCalendar = this.getView()?.byId("calendarId"); // Ensure ID exists in XML
+        oActionSheet.openBy(oCalendar || (this.getView()?.byId("statusPopover") as any));
+    }
+
+    private _updateDateStatus(sStatus: string): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const aDays = oModel.getProperty("/days") as any[];
 
         if (this._tempSelectedDate) {
             const sDateKey = this._tempSelectedDate.toDateString();
-
-            // Save to Overrides Map in LocalStorage
             const sSavedOverrides = localStorage.getItem(this.OVERRIDES_KEY);
             const oOverrides = sSavedOverrides ? JSON.parse(sSavedOverrides) : {};
+
             oOverrides[sDateKey] = { status: sStatus, type: this._getColorByType(sStatus) };
             localStorage.setItem(this.OVERRIDES_KEY, JSON.stringify(oOverrides));
 
-            // Update the current model array
             const oDay = aDays.find(d => d.date.toDateString() === sDateKey);
             if (oDay) {
                 oDay.status = sStatus;
                 oDay.type = this._getColorByType(sStatus);
                 oModel.refresh();
-
-                // Sync the full state
                 localStorage.setItem(this.DATA_STORAGE_KEY, JSON.stringify(oModel.getData()));
                 this._updateChartData();
             }
         }
-        (this.getView()?.byId("statusPopover") as Popover).close();
     }
 
     public onSelectionChange(oEvent: any): void {
         const aSelectedKeys = oEvent.getSource().getSelectedKeys() as string[];
-        localStorage.setItem(this.DAYS_STORAGE_KEY, JSON.stringify(aSelectedKeys));
+        const oModel = this.getView()?.getModel() as JSONModel;
+        const oViewDate = oModel.getProperty("/calendarStartDate") as Date;
+        const aMonths = oModel.getProperty("/availableMonths") as any[];
+
+        const currentMonthLabel = aMonths.find(m => {
+            const d = new Date();
+            d.setMonth(d.getMonth() + parseInt(m.key));
+            return d.getMonth() === oViewDate.getMonth() && d.getFullYear() === oViewDate.getFullYear();
+        })?.text;
+
+        if (currentMonthLabel) {
+            const sMonthlyPrefs = localStorage.getItem(this.WFO_PREFS_KEY);
+            const oMonthlyPrefs = sMonthlyPrefs ? JSON.parse(sMonthlyPrefs) : {};
+            oMonthlyPrefs[currentMonthLabel] = aSelectedKeys;
+            localStorage.setItem(this.WFO_PREFS_KEY, JSON.stringify(oMonthlyPrefs));
+        }
 
         const oNewData = this._generateDefaultMonthData();
-        const oModel = this.getView()?.getModel() as JSONModel;
         oModel.setProperty("/days", oNewData.days);
         localStorage.setItem(this.DATA_STORAGE_KEY, JSON.stringify(oModel.getData()));
         this._updateChartData();
-        // (this.getView()?.byId("settings") as Popover).close();
     }
 
     public onReset(): void {
@@ -344,18 +368,18 @@ export default class Main extends Controller {
             onClose: (oAction: any) => {
                 if (oAction === "Reset All") {
                     localStorage.removeItem(this.OVERRIDES_KEY);
+                    localStorage.removeItem(this.WFO_PREFS_KEY);
                 }
-
-                // Re-run the generator (it will now respect whatever is left in Overrides)
                 const oNewData = this._generateDefaultMonthData();
                 const oModel = this.getView()?.getModel() as JSONModel;
                 oModel.setProperty("/days", oNewData.days);
-
                 localStorage.setItem(this.DATA_STORAGE_KEY, JSON.stringify(oModel.getData()));
                 this._refreshActiveMonthData();
+                this._initMultiComboSelection();
             }
         });
     }
+
     public onOkPress(): void {
         (this.getView()?.byId("settings") as Popover).close();
     }
@@ -371,36 +395,50 @@ export default class Main extends Controller {
                         { "displayName": "WFH", "dataContext": { "Category": "WFH" }, "properties": { "color": "#73f073" } },
                         { "displayName": "WFO", "dataContext": { "Category": "WFO" }, "properties": { "color": "#d98d41" } },
                         { "displayName": "Leave", "dataContext": { "Category": "Leave" }, "properties": { "color": "#5995f0" } }
-
                     ]
                 }
             },
-            title: { visible: true, text: "Remaining Days Forecast" },
+            title: { visible: true, text: "Utilization Forecast" },
             valueAxis: { title: { visible: true, text: "Days" } },
-            CategoryAxis: {
-                title: { visible: true, text: "category" },
-                label: {
-                    visible: true
-                }
-            },
-            legend: {
-                visible: false,
-                isScrollable: false,
-                alignment: "center",
-                type: "common"
-            },
-            legendGroup: {
-                layout: {
-                    position: "bottom"
-                }
-            }
+            CategoryAxis: { title: { visible: true, text: "category" }, label: { visible: true } },
+            legend: { visible: false, isScrollable: false, alignment: "center", type: "common" },
+            legendGroup: { layout: { position: "bottom" } }
         });
+
+        oVizFrame?.attachSelectData(this.onBarSelect, this);
+        oVizFrame?.attachDeselectData(this._resetCalendar, this);
+    }
+
+    public onBarSelect(oEvent: any): void {
+        const aData = oEvent.getParameter("data");
+        if (aData && aData.length > 0) {
+            const sCategory = aData[0].data.Category;
+            const sType = this._getColorByType(sCategory);
+            this._toggleCalendarFilter("vizClicked", sCategory, sType);
+        } else {
+            this._resetCalendar();
+        }
     }
 
     private _initMultiComboSelection(): void {
         const oMultiCombo = this.getView()?.byId("daysSelector") as MultiComboBox;
-        const sSavedDays = localStorage.getItem(this.DAYS_STORAGE_KEY);
-        oMultiCombo?.setSelectedKeys(sSavedDays ? JSON.parse(sSavedDays) : []);
+        const oModel = this.getView()?.getModel() as JSONModel;
+        if (!oModel) return;
+
+        const oViewDate = oModel.getProperty("/calendarStartDate") as Date;
+        const aMonths = oModel.getProperty("/availableMonths") as any[];
+
+        const currentMonthLabel = aMonths.find(m => {
+            const d = new Date();
+            d.setMonth(d.getMonth() + parseInt(m.key));
+            return d.getMonth() === oViewDate.getMonth() && d.getFullYear() === oViewDate.getFullYear();
+        })?.text;
+
+        const sMonthlyPrefs = localStorage.getItem(this.WFO_PREFS_KEY);
+        const oMonthlyPrefs = sMonthlyPrefs ? JSON.parse(sMonthlyPrefs) : {};
+
+        const aSelectedKeys = (currentMonthLabel && oMonthlyPrefs[currentMonthLabel]) ? oMonthlyPrefs[currentMonthLabel] : [];
+        oMultiCombo?.setSelectedKeys(aSelectedKeys);
     }
 
     public handleDaySelect(oEvent: Event): void {
@@ -410,109 +448,150 @@ export default class Main extends Controller {
         if (aSelectedDates.length > 0) {
             this._tempSelectedDate = aSelectedDates[0].getStartDate() as unknown as Date;
             (this.getView()?.byId("statusPopover") as Popover).openBy(oCalendar);
-
         }
     }
 
     public OnSettings(oEvent: Event): void {
         const oButton = oEvent.getSource() as any;
+        this._refreshActiveMonthData();
         (this.getView()?.byId("settings") as Popover).openBy(oButton);
     }
 
     public handleMonthChange(oEvent: any): void {
         const oModel = this.getView()?.getModel() as JSONModel;
-
-        // Get the new start date from the calendar navigation event
         const oNewStartDate = oEvent.getSource().getStartDate();
-
-        // Update the model so the filter knows which month we are looking at
         oModel.setProperty("/calendarStartDate", oNewStartDate);
-
-        // Refresh the chart and allocation based on the new month
         this._updateChartData();
         this._updateAllocationDropdown(oNewStartDate);
     }
 
     private _updateAllocationDropdown(oDate: Date): void {
         const oModel = this.getView()?.getModel() as JSONModel;
-
-        // Logic to update your WFH Allocation dropdown value
-        // For example, if you want to reset it or fetch new limits for May
         const iMonth = oDate.getMonth();
         const currentMonth = new Date().getMonth();
         let selectedMonthKey = 0;
+
         if (currentMonth < iMonth) {
             selectedMonthKey = iMonth - currentMonth;
-        } else if (currentMonth < iMonth) {
-            selectedMonthKey = currentMonth - iMonth;
+        } else if (currentMonth > iMonth) {
+            selectedMonthKey = 0;
         }
+
         if (selectedMonthKey < 3) {
-
             oModel.setProperty("/selectedMonthKey", selectedMonthKey);
-
         } else {
             oModel.setProperty("/selectedMonthKey", 0);
-
         }
 
         const oNewDate = new Date();
         oNewDate.setMonth(oNewDate.getMonth() + selectedMonthKey);
         oNewDate.setDate(1);
 
-
         oModel.setProperty("/calendarStartDate", oNewDate);
         this._refreshActiveMonthData();
-
+        this._initMultiComboSelection();
     }
 
-
     private _getColorByType(s: string): string {
-        const m: any = { "WFH": "Type08", "WFO": "Type02", "Leave": "Type06", "Holiday": "Type04" };
+        const m: any = {
+            "WFH": "Type08",
+            "WFO": "Type02",
+            "Leave": "Type06",
+            "Half day(WFH)": "Type08", // Blue-Yellow tint
+            "Half day(WFO)": "Type02", // Distinct from others
+            "Holiday": "Type04",
+            "Workdays": "Type01"
+        };
         return m[s] || "None";
     }
 
-
     public onWFHPress(): void {
-        this._toggleCalendarFilter("WFH", "Type08"); // WFH Color
+        this._toggleCalendarFilter("tileClicked", "WFH", "Type08");
     }
 
     public onWFOPress(): void {
-        this._toggleCalendarFilter("WFO", "Type02"); // WFO Color
+        this._toggleCalendarFilter("tileClicked", "WFO", "Type02");
     }
 
-    private _toggleCalendarFilter(sStatus: string, sActiveType: string): void {
+    private _toggleCalendarFilter(sClicked: string, sStatus: string, sActiveType: string): void {
         const oModel = this.getView()?.getModel() as JSONModel;
         const aDays = oModel.getProperty("/days") as any[];
+        const oToday = new Date();
+        oToday.setHours(0, 0, 0, 0);
 
-        // If clicking the same tile again, reset to default
         if (this._sCurrentFilter === sStatus) {
             this._resetCalendar();
-            this._sCurrentFilter = null;
             return;
         }
 
         this._sCurrentFilter = sStatus;
-
-        // Map through days to update the visual 'type'
         const aUpdatedDays = aDays.map((oDay: any) => {
+            const dDate = (oDay.date instanceof Date) ? oDay.date : new Date(oDay.date);
+            const isFutureOrToday = dDate.getTime() >= oToday.getTime();
+
+            let bIsMatch = false;
+            if (sClicked === "tileClicked") {
+                bIsMatch = sStatus === "Workdays" ? (oDay.status.includes("WFH") || oDay.status.includes("WFO")) : (oDay.status.includes(sStatus));
+            }
+            else if (isFutureOrToday) {
+                bIsMatch = sStatus === "Workdays" ? (oDay.status.includes("WFH") || oDay.status.includes("WFO")) : (oDay.status.includes(sStatus));
+            }
+
             return {
                 ...oDay,
-                // If status matches, show color; otherwise, set to "None" (transparent)
-                type: oDay.status === sStatus ? sActiveType : "None"
+                type: bIsMatch ? sActiveType : "None"
             };
         });
-
         oModel.setProperty("/days", aUpdatedDays);
     }
 
     public _resetCalendar(): void {
         const oModel = this.getView()?.getModel() as JSONModel;
+        const aDays = oModel.getProperty("/days") as any[];
 
-        // Call your existing generation logic to restore original Type08/Type02/Type14 colors
-        const oDefaultData = this._generateDefaultMonthData();
-        oModel.setProperty("/days", oDefaultData.days);
+        if (!aDays) return;
 
+        const aResetDays = aDays.map((oDay: any) => {
+            return {
+                ...oDay,
+                type: this._getColorByType(oDay.status)
+            };
+        });
+
+        oModel.setProperty("/days", aResetDays);
         this._sCurrentFilter = null;
     }
 
+    public async onPressHelp(): Promise<void> {
+        const sPdfPath = sap.ui.require.toUrl("com/infosys/hybridhorizon/pdf/Hybrid_Horizon_Professional_Guide-v4.pdf");
+        const aPageImages: { src: string }[] = [];
+
+        try {
+            const pdf = await pdfjsLib.getDocument(sPdfPath).promise;
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 2 });
+
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                aPageImages.push({ src: canvas.toDataURL("image/png") });
+            }
+
+            const oModel = new JSONModel({ pages: aPageImages });
+            this.getView()?.setModel(oModel, "pdfModel");
+            (this.byId("pdfCarouselDialog") as Dialog).open();
+
+        } catch (error) {
+            console.error("PDF Rendering Error:", error);
+        }
+    }
+
+    public onCloseCarousel() {
+        (this.byId("pdfCarouselDialog") as Dialog).close();
+    }
 }

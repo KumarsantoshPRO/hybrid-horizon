@@ -10,7 +10,7 @@
     displayBlock="true"
     xmlns:core="sap.ui.core"
 >
-    <App  >
+    <App>
         <Page
             id="pageId"
             title="{i18n>title}"
@@ -33,43 +33,10 @@
                     width="100%"
                     alignItems="Stretch"
                 >
-                    <!-- Calendar -->
-                    <VBox
-                        width="100%"
-                        class="sapUiNoContentPadding"
-                    >
-                        <u:Calendar
-                            id="workCalendar"
-                            width="100%"
-                            select="handleDaySelect"
-                            startDateChange="handleMonthChange"
-                            specialDates="{path: '/days', templateShareable: false}"
-                            minDate="{/minCalendarDate}"
-                            maxDate="{/maxCalendarDate}"
-                        >
-                            <u:specialDates>
-                                <u:DateTypeRange
-                                    startDate="{path: 'date', formatter: '.formatter.formatDate'}"
-                                    type="{type}"
-                                    tooltip="{status}"
-                                />
-                            </u:specialDates>
-                        </u:Calendar>
-                    </VBox>
-                    <!-- Messages -->
-                    <MessageStrip
-                        text="{/message/messageStripText}"
-                        type="{/message/type}"
-                        visible="{/message/visible}"
-                        showIcon="true"
-                        showCloseButton="true"
-                        class="sapUiMediumMarginBottom"
-                    />
                     <!-- Tiles -->
                     <HBox
                         justifyContent="SpaceAround"
                         class="sapUiNoMarginTopBottom"
-                        height="90%"
                     >
                         <items>
                             <!-- <GenericTile
@@ -89,7 +56,7 @@
                                 </tileContent>
                             </GenericTile> -->
                             <GenericTile
-                                header="WFH Days"
+                                header="Home"
                                 frameType="OneByHalf"
                                 press="onWFHPress"
                                 class="sapUiTinyMargin"
@@ -108,7 +75,7 @@
                             </GenericTile>
 
                             <GenericTile
-                                header="WFO Days"
+                                header="Office"
                                 frameType="OneByHalf"
                                 press="onWFOPress"
                                 class="sapUiTinyMargin"
@@ -128,11 +95,46 @@
                         </items>
                     </HBox>
 
+                    <!-- Calendar -->
+                    <VBox
+                        width="100%"
+                        class="sapUiNoContentPadding"
+                    >
+                        <u:Calendar
+                            id="workCalendar"
+                            width="100%"
+                            select="handleDaySelect"
+                            startDateChange="handleMonthChange"
+                            specialDates="{path: '/days', templateShareable: false}"
+                            minDate="{/minCalendarDate}"
+                            maxDate="{/maxCalendarDate}"
+                            showCurrentDateButton="false"
+                        >
+                            <u:specialDates>
+                                <u:DateTypeRange
+                                    startDate="{path: 'date', formatter: '.formatter.formatDate'}"
+                                    type="{type}"
+                                    tooltip="{status}"
+                                    color="{= ${status}.includes('Half day') ? '#c5dbfc' : ${status}.includes('Holiday') ? '' : '' }"
+                                    secondaryType="{= ${status}.includes('Weekend') || ${status}.includes('Holiday')|| ${status}.includes('Leave')|| ${status}.includes('Half day') ? 'NonWorking' : 'Working' }"
+                                />
+                            </u:specialDates>
+                        </u:Calendar>
+                    </VBox>
+                    <!-- Messages -->
+                    <MessageStrip
+                        text="{/message/messageStripText}"
+                        type="{/message/type}"
+                        visible="{/message/visible}"
+                        showIcon="true"
+                        showCloseButton="true"
+                        class="sapUiMediumMarginBottom"
+                    />
                     <!-- Chart -->
                     <viz:VizFrame
                         id="idVizFrame"
                         uiConfig="{applicationSet:'fiori'}"
-                        height="250px"
+                        height="300px"
                         width="100%"
                         vizType="column"
                     >
@@ -206,14 +208,25 @@
 
                 <Popover
                     id="settings"
-                    title="Custom Settings"
                     placement="Auto"
                 >
+                    <customHeader>
+                        <Bar>
+                            <contentLeft>
+                                <Title text="{/settingsTitle}" />
+                            </contentLeft>
+
+                            <contentRight>
+                                <Button
+                                    text="Guide"
+                                    press="onPressHelp"
+                                    tooltip="User Guide"
+                                />
+                            </contentRight>
+                        </Bar>
+                    </customHeader>
                     <content>
-                        <form:SimpleForm
-                            editable="true"
-                            layout="ColumnLayout"
-                        >
+                        <form:SimpleForm editable="true">
                             <Label text="WFH Bucket" />
                             <Select
                                 id="monthSelector"
@@ -222,6 +235,7 @@
                                 selectedKey="{/selectedMonthKey}"
                                 width="110px"
                                 class="sapUiTinyMarginEnd"
+                                visible="false"
                             >
                                 <core:Item
                                     key="{key}"
@@ -233,12 +247,11 @@
                                 id="wfhBucketInput"
                                 value="{/currentWfhBucket}"
                                 type="Number"
-                                width="70px"
-                                placeholder="Qty"
+                                placeholder="No. of WFH"
                                 liveChange=".onWfhBucketChange"
                             />
 
-                            <Label text="Select Prefered WFO" />
+                            <Label text="Select Preferred WFO" />
                             <MultiComboBox
                                 id="daysSelector"
                                 items="{path: '/configDays'}"
@@ -256,7 +269,7 @@
                                 text="Close"
                                 icon="sap-icon://submit"
                                 iconDensityAware="true"
-                                tooltip="Reset to Default"
+                                tooltip="Close"
                                 type="Transparent"
                                 press="onOkPress"
                             />
@@ -273,6 +286,33 @@
                         </form:SimpleForm>
                     </content>
                 </Popover>
+                <Dialog
+                    id="pdfCarouselDialog"
+                    title="User Guide"
+                    contentWidth="80%"
+                    contentHeight="100%"
+                >
+                    <content>
+                        <Carousel
+                            id="pdfCarousel"
+                            pages="{pdfModel>/pages}"
+                            loop="false"
+                        >
+                            <pages>
+                                <Image
+                                    src="{pdfModel>src}"
+                                    width="100%"
+                                />
+                            </pages>
+                        </Carousel>
+                    </content>
+                    <buttons>
+                        <Button
+                            text="Close"
+                            press=".onCloseCarousel"
+                        />
+                    </buttons>
+                </Dialog>
             </dependents>
         </Page>
     </App>
